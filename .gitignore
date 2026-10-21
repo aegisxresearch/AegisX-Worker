@@ -1,0 +1,21 @@
+node_modules/
+dist/
+*.log
+
+# Local secrets — never commit an API key.
+.env
+.env.*
+!.env.example
+
+# Agent sandbox output (files the workers write at runtime).
+workspace/
+
+# Local office state (the workspace folder the operator picked).
+.agent-office/
+
+# Session snapshots from the agent harness (large, regenerated automatically).
+.freebuff-snapshots/
+
+# Agent-harness installs (71 agents / 326 skills, restored by the harness, not the product).
+.agents/
+.freebuff/

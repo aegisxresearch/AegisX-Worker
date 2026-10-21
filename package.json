@@ -1,0 +1,30 @@
+{
+  "name": "agent-office",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "3D virtual office where AI agents work as visible workers",
+  "bin": {
+    "aegisxworker": "bin/aegisxworker.mjs"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "worker": "node bin/aegisxworker.mjs",
+    "dev:client": "npm -w client run dev",
+    "dev:server": "npm -w server run dev",
+    "build": "npm -w client run build",
+    "typecheck": "npm -w client run typecheck && npm -w server run typecheck",
+    "check:usage": "node --experimental-strip-types scripts/usage-check.mjs",
+    "check:gate": "node --experimental-strip-types scripts/gate-check.mjs",
+    "check:restore": "node --experimental-strip-types scripts/restore-check.mjs",
+    "check": "npm run typecheck && npm run check:gate && npm run check:usage && npm run check:restore",
+    "start": "npm -w server run start"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  }
+}
