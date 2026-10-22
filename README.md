@@ -1,5 +1,7 @@
 # AegisX-Worker
 
+[English](README.md) · [Bahasa Indonesia](README.id.md)
+
 **A 3D virtual office where AI workers are visible characters.** Every agent is a
 real model call against an OpenAI-compatible endpoint you control — you bring the
 key, the office runs the show.
@@ -30,7 +32,7 @@ independent reviewer and a merge gate stand in front of the board.
 | --- | --- |
 | [What it does](#what-it-does) | The capabilities, one line each, with the check behind it |
 | [The playbook, on screen](#the-playbook-on-screen) | What each worker is told, and what the reviewer refuses |
-| [Requirements](#requirements) · [Run it](#run-it) | From `git clone` to a worker writing in your folder |
+| [Install](#install) · [Requirements](#requirements) · [Run it](#run-it) | One command, or a manual clone; then a worker writing in your folder |
 | [Configuration](#configuration) | Every environment variable and what it changes |
 | [Architecture](#architecture) | The file map, the completion gate, isolation, two languages |
 | [Verification](#verification) | The checks, what they cost, and what they cannot prove |
@@ -207,7 +209,72 @@ from evidence instead of taste.
 - Node.js >= 22.6 (uses native TypeScript execution)
 - Chrome/Chromium for the 3D scene (WebGL)
 
+## Install
+
+One command, no `sudo`, no global npm install required:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/aegisxresearch/AegisX-Worker/main/install.sh | bash
+```
+
+That pipes a remote script into a shell, so read it first if you prefer — it is
+[`install.sh`](install.sh) in this repo:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/aegisxresearch/AegisX-Worker/main/install.sh
+less install.sh
+bash install.sh
+```
+
+The installer:
+
+1. checks Node.js >= 22.6, npm and tar (plus git, or curl as the fallback);
+2. fetches the source into `~/.aegisx-worker` — `git clone` at the chosen ref, or
+   the GitHub tarball when git is missing;
+3. installs the workspace dependencies (`npm ci`, falling back to `npm install`
+   only when the lockfile cannot be honoured);
+4. builds the browser bundle;
+5. links `aegisxworker` with `npm link`, or writes `~/.local/bin/aegisxworker`
+   when the global npm prefix is not writable — it never asks for root;
+6. runs `aegisxworker --version`, so a broken install fails here instead of on
+   your first mission.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--dir <path>` | `$AEGISX_HOME` or `~/.aegisx-worker` | Where the source lives |
+| `--ref <branch\|tag>` | `main` | Pin the install to a branch or tag |
+| `--tarball` | off | Skip git entirely and download the archive |
+| `--no-build` | off | Skip the client build (the CLI builds it on first run) |
+| `--no-link` | off | Do not install the `aegisxworker` command |
+| `--dry-run` | off | Print the plan, change nothing |
+
+Re-running the installer updates an existing install in place. A folder it did
+not create is never touched: a non-empty directory without the
+`.aegisx-install` marker is refused with a message instead of being overwritten.
+
+```bash
+AEGISX_HOME=~/src/aegisx bash install.sh   # custom folder
+bash install.sh --ref v0.1.0              # reproducible pin
+bash install.sh --dry-run                 # see the plan first
+```
+
+To remove it: `npm unlink -g agent-office` (when it was linked) and delete the
+install folder. Nothing else is written outside that folder and
+`~/.local/bin/aegisxworker`.
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `Node.js v… is too old` | Node >= 22.6 is required (native TypeScript execution); `nvm install 22` or upgrade |
+| `npm link failed … writing a wrapper` | The global npm prefix is not writable; the wrapper *is* the install — add `~/.local/bin` to `PATH` |
+| `fatal: Remote branch … not found` | `--ref` names a branch/tag that does not exist; use `main` or a real tag |
+| `curl: (22) … 404` | Same, on the tarball path: check the ref |
+| `preview_screenshot` cannot find Chrome | Install Chrome/Chromium, or set `CHROME_PATH` |
+| Commands run unsandboxed | `bwrap` is missing; install `bubblewrap`, or accept `OFFICE_JAIL=0` knowingly |
+
 ## Run it
+
+Manual, from a clone — this is the path to use if you want to read and change the
+code:
 
 ```bash
 npm install
@@ -332,8 +399,11 @@ the three-tier memory each carry the check that proves them, and the plan
 sections list the remaining work with its acceptance criteria.
 
 The documentation is checked like code: `npm run check:docs` compares the file
-map above with what is on disk in both directions, and refuses an evidence row
-that names a `check:…` which does not exist or is not part of `npm run check`.
+map above with what is on disk in both directions, refuses an evidence row that
+names a `check:…` which does not exist or is not part of `npm run check`, and
+holds [`README.id.md`](README.id.md) to this one — the same section outline, the
+same file links, the same map — so the Indonesian documentation cannot quietly
+fall behind.
 
 ## Architecture
 
@@ -806,7 +876,7 @@ npm run check:snapshot   # exact restore, ignored paths, parallel turns, live re
 npm run check:i18n       # both language columns complete and actually used
 npm run check:wording    # every log kind and system note has a translation
 npm run check:language   # the chosen language reaches the model prompt
-npm run check:docs       # the README map and the ROADMAP evidence rows match reality
+npm run check:docs       # the README map, the ROADMAP evidence rows, and both READMEs match
 npm run check:cleanup    # scratch files are refused; the page-check prompt is real
 npm run check:failure    # every blocked task carries a cause; the ranking is stable
 npm run check:jail       # the sandbox hides the home dir, blocks /etc and the network

@@ -53,15 +53,20 @@ const chain = String(scripts.check ?? '');
 
 // ── the README file map ─────────────────────────────────────────────────────
 
-/** The fenced block under "## Architecture", where the folder tree lives. */
-function architectureBlock(text) {
-  const start = text.indexOf('## Architecture');
+/** The first fenced block under a heading, where the folder tree lives. */
+function fencedBlockAfter(text, heading) {
+  const start = text.indexOf(heading);
   if (start < 0) return '';
   const fence = text.indexOf('```', start);
   if (fence < 0) return '';
   const end = text.indexOf('```', fence + 3);
   if (end < 0) return '';
   return text.slice(fence + 3, end);
+}
+
+/** The fenced block under "## Architecture". */
+function architectureBlock(text) {
+  return fencedBlockAfter(text, '## Architecture');
 }
 
 /** One entry per line of the tree: which folder it belongs to, and its path. */
@@ -265,6 +270,77 @@ await check('every registered check script points at a file that exists', async 
   assert.deepEqual(missing, [], missing.join(', '));
 });
 
+// ── the Indonesian README ──────────────────────────────────────────────────
+
+const README_ID = path.join(ROOT, 'README.id.md');
+const ID_ARCHITECTURE = '## Arsitektur';
+
+/**
+ * Heading levels in file order. The words are translated, so only the shape is
+ * comparable — but the shape is what drifts when a section is added to one
+ * README and forgotten in the other, and a reader who switches language then
+ * loses the section without being told.
+ */
+function headingLevels(text) {
+  return text
+    .split('\n')
+    .map((line) => /^(#{1,3})\s+\S/.exec(line))
+    .filter(Boolean)
+    .map((match) => match[1].length);
+}
+
+/** Relative link targets: the files a reader is sent to, not anchors or URLs. */
+function relativeLinks(text) {
+  return [...text.matchAll(/\]\((?!https?:|#)([^)]+)\)/g)]
+    .map((match) => match[1])
+    .filter((target) => target !== 'README.md' && target !== 'README.id.md');
+}
+
+const idReadme = await fs.readFile(README_ID, 'utf8').catch(() => null);
+
+console.log('\n[docs] the Indonesian README');
+
+await check('the translated README exists and the two link to each other', () => {
+  assert.ok(idReadme, 'README.id.md is missing');
+  assert.match(readme, /\]\(README\.id\.md\)/, 'the English README has no switch to README.id.md');
+  assert.match(idReadme, /\]\(README\.md\)/, 'the Indonesian README has no switch back to README.md');
+  assert.ok(idReadme.length > readme.length * 0.8, 'README.id.md is far shorter than README.md — suspiciously so');
+});
+
+await check('both READMEs carry the same section outline', () => {
+  const english = headingLevels(readme);
+  const indonesian = headingLevels(idReadme);
+  assert.equal(
+    indonesian.length,
+    english.length,
+    `README.id.md has ${indonesian.length} headings, README.md has ${english.length}`,
+  );
+  const drifted = english.findIndex((level, index) => level !== indonesian[index]);
+  assert.equal(
+    drifted,
+    -1,
+    `heading ${drifted + 1} is h${english[drifted]} in English and h${indonesian[drifted]} in Indonesian`,
+  );
+});
+
+await check('every file the English README links to is linked in Indonesian', () => {
+  const inIndonesian = new Set(relativeLinks(idReadme));
+  const missing = [...new Set(relativeLinks(readme))].filter((target) => !inIndonesian.has(target));
+  assert.deepEqual(missing, [], `not linked in README.id.md: ${missing.join(', ')}`);
+});
+
+await check('the Indonesian file map lists every path the English one does', () => {
+  const indonesianMap = parseMap(fencedBlockAfter(idReadme, ID_ARCHITECTURE));
+  assert.ok(indonesianMap.length >= 20, `only ${indonesianMap.length} entries parsed from README.id.md`);
+  const listed = new Set(indonesianMap.map((item) => `${item.section}:${item.entry}`));
+  const missing = mapEntries.filter((item) => !listed.has(`${item.section}:${item.entry}`));
+  assert.deepEqual(
+    missing.map((item) => `${item.section}/${item.entry}`),
+    [],
+    `the Indonesian map has fallen behind: ${missing.map((item) => `${item.section}/${item.entry}`).join(', ')}`,
+  );
+});
+
 // ── the check has teeth ─────────────────────────────────────────────────────
 
 // A check that only ever passes is a check that proves nothing. These fixtures
@@ -289,6 +365,20 @@ await check('a module missing from the map would be reported', () => {
   const listed = parsed.map((item) => item.entry);
   const forgotten = ['llm.ts', 'worktrees.ts'].filter((name) => !listed.includes(`src/${name}`));
   assert.deepEqual(forgotten, ['worktrees.ts'], 'the missing-module rule stopped detecting a gap');
+});
+
+await check('a translation that dropped a section would be reported', () => {
+  const trimmed = readme.replace(/## Security notes[\s\S]*$/, '');
+  assert.notDeepEqual(
+    headingLevels(trimmed),
+    headingLevels(readme),
+    'the outline comparison cannot see a section that went missing',
+  );
+  assert.deepEqual(
+    [...new Set(relativeLinks(readme))].filter((target) => !relativeLinks(trimmed).includes(target)),
+    ['LICENSE'],
+    'the link comparison cannot see the links of a dropped section',
+  );
 });
 
 await check('a path on the map that is gone would be reported', async () => {
