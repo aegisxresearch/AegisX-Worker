@@ -2,6 +2,7 @@
   "name": "agent-office",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "3D virtual office where AI agents work as visible workers",
   "bin": {

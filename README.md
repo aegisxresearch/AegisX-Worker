@@ -36,6 +36,7 @@ independent reviewer and a merge gate stand in front of the board.
 | [Verification](#verification) | The checks, what they cost, and what they cannot prove |
 | [Security notes](#security-notes) | The trust boundary, stated plainly |
 | [Roadmap](#roadmap) | Done, in progress, and what is deliberately not here |
+| [License](#license) | MIT — use it, fork it, ship it |
 
 ## What it does
 
@@ -862,3 +863,12 @@ The CLI path is verified on a real model call too: from an empty folder,
 `aegisxworker "build a landing page …"` produced `index.html`, `styles.css` and
 `script.js`, and the page rendered with zero console errors and no horizontal
 overflow at 375 / 768 / 1440 px.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Use it, fork it, ship it; keep the copyright and
+permission notice with any copy. The name and logo are not part of the grant.
+
+If you run the office against your own endpoint, your model provider's terms
+apply to what the workers send and receive; this licence covers the software,
+not the model or its output.
