@@ -148,12 +148,17 @@ try {
   });
   const boardBeforeKill = await (await fetch(`${firstOrigin}/api/tasks`)).json();
 
+  // The file must show the task *doing and assigned*, not merely present: the
+  // create lands one flush before the PATCH, and killing between the two made
+  // this check flaky under load (the "interrupted" work was never on disk).
   const savedFile = await waitFor(async () => {
     const envelope = await readStateFile(stateFile);
     if (!envelope?.state?.tasks) return null;
     const ids = envelope.state.tasks.map((task) => task.id);
-    return ids.includes(mission.id) && ids.includes(openTask.id) ? envelope : null;
-  }, 'the board to reach disk');
+    if (!(ids.includes(mission.id) && ids.includes(openTask.id))) return null;
+    const savedOpen = envelope.state.tasks.find((task) => task.id === openTask.id);
+    return savedOpen?.status === 'doing' && savedOpen?.assigneeId === lead.id ? envelope : null;
+  }, 'the running task to reach disk');
 
   await check('the board reaches disk while the mission runs', () => {
     assert.equal(savedFile.version, 1);

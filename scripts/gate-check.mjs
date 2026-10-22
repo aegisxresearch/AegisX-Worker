@@ -298,7 +298,7 @@ async function toolChecks() {
   await check('run_command refuses to leave the workspace', async () => {
     const hop = await executeAction({ action: 'run_command', command: 'cat ../outside.txt' }, context);
     assert.equal(hop.ok, false, 'a .. hop must be rejected');
-    assert.match(hop.summary, /hops outside the workspace/);
+    assert.match(hop.summary, /leave the workspace/);
 
     const absolute = await executeAction({ action: 'run_command', command: 'cat /etc/passwd' }, context);
     assert.equal(absolute.ok, false, 'an absolute path outside the root must be rejected');
@@ -306,7 +306,7 @@ async function toolChecks() {
 
     const offList = await executeAction({ action: 'run_command', command: 'curl https://example.com' }, context);
     assert.equal(offList.ok, false);
-    assert.match(offList.summary, /not on the allowlist/);
+    assert.match(offList.summary, /http_check/, 'a refusal names the tool that replaces the binary');
   });
 
   await check('run_command still runs an allowlisted command inside the folder', async () => {

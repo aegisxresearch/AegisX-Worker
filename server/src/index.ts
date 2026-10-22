@@ -10,6 +10,7 @@ import { chatRoutes } from './routes/chat.ts';
 import { eventRoutes } from './routes/events.ts';
 import { sessionRoutes } from './routes/session.ts';
 import { taskRoutes } from './routes/tasks.ts';
+import { stopAllProcesses } from './processes.ts';
 import { OfficeStore } from './store.ts';
 import { ensureRoot, loadSavedRoot, normaliseRoot } from './workspace.ts';
 
@@ -36,8 +37,10 @@ async function main(): Promise<void> {
     );
   }
 
-  // Restore the folder the operator picked in a previous session.
-  const savedRoot = await loadSavedRoot();
+  // Restore the folder the operator picked in a previous session. An explicit
+  // OFFICE_WORKSPACE wins: automation (a check, an eval run) must be able to
+  // pin the folder it writes into without inheriting someone's last pick.
+  const savedRoot = process.env.OFFICE_WORKSPACE ? null : await loadSavedRoot();
   if (savedRoot) {
     try {
       const root = normaliseRoot(savedRoot);
@@ -87,7 +90,9 @@ async function main(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`[office] ${signal} — saving the mission board.`);
-    void persistence.stop().then(() => process.exit(0));
+    // Servers a worker started are children of this process; leaving them alive
+    // turns the next mission into a port-conflict hunt.
+    void Promise.all([persistence.stop(), stopAllProcesses()]).then(() => process.exit(0));
   };
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));

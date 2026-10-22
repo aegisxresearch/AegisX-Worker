@@ -20,17 +20,24 @@
         </svg>
         <div class="brand-text">
           <strong>Agent Office</strong>
-          <span>3D floor for your AI workforce</span>
+          <span data-i18n="brand.tagline">3D floor for your AI workforce</span>
         </div>
       </div>
       <div class="topbar-actions">
-        <button id="workspace-pill" class="pill pill-workspace" type="button" title="Agent workspace folder">
+        <button id="workspace-pill" class="pill pill-workspace" type="button" data-i18n-title="workspace.pillTitle">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" aria-hidden="true">
             <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
           </svg>
           <span class="pill-text" id="workspace-path">workspace</span>
         </button>
-        <button id="spend-pill" class="pill pill-spend" type="button" title="Tokens spent by the team — open the cost history" aria-label="Open cost history" hidden>
+        <button
+          id="spend-pill"
+          class="pill pill-spend"
+          type="button"
+          data-i18n-title="spend.pillTitle"
+          data-i18n-aria="spend.pillAria"
+          hidden
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" aria-hidden="true">
             <path d="M12 3a9 9 0 100 18 9 9 0 000-18zM12 8a4 4 0 100 8 4 4 0 000-8z" />
           </svg>
@@ -38,53 +45,68 @@
         </button>
         <div id="connection-pill" class="pill" role="status">
           <span class="dot" data-state="idle"></span>
-          <span class="pill-text">Connecting…</span>
+          <span class="pill-text" data-i18n="conn.connecting">Connecting…</span>
         </div>
-        <button id="open-settings" class="btn btn-ghost" type="button">Settings</button>
+        <button id="open-settings" class="btn btn-ghost" type="button" data-i18n="common.settings">Settings</button>
       </div>
     </header>
 
     <aside id="task-panel" class="panel panel-left">
       <div class="panel-head">
-        <h2>Task board</h2>
-        <button id="task-panel-toggle" class="icon-btn" type="button" aria-label="Collapse task board"></button>
+        <h2 data-i18n="tasks.title">Task board</h2>
+        <button id="task-panel-toggle" class="icon-btn" type="button" data-i18n-aria="tasks.collapse"></button>
       </div>
       <form id="task-composer" class="composer">
-        <div id="mission-presets" class="mission-presets" role="group" aria-label="Quick-start missions">
-          <button class="preset-chip" type="button" data-mission="app">Build an app</button>
-          <button class="preset-chip" type="button" data-mission="website">Build a website</button>
-          <button class="preset-chip" type="button" data-mission="bug">Fix a bug</button>
-          <button class="preset-chip" type="button" data-mission="docs">Write docs</button>
-          <button class="preset-chip" type="button" data-mission="audit">Audit this folder</button>
+        <div id="mission-presets" class="mission-presets" role="group" data-i18n-aria="presets.aria">
+          <button class="preset-chip" type="button" data-mission="app" data-i18n="preset.app">Build an app</button>
+          <button class="preset-chip" type="button" data-mission="website" data-i18n="preset.website">Build a website</button>
+          <button class="preset-chip" type="button" data-mission="bug" data-i18n="preset.bug">Fix a bug</button>
+          <button class="preset-chip" type="button" data-mission="docs" data-i18n="preset.docs">Write docs</button>
+          <button class="preset-chip" type="button" data-mission="audit" data-i18n="preset.audit">Audit this folder</button>
         </div>
-        <input id="task-title" type="text" placeholder="New task for the team…" autocomplete="off" />
+        <input
+          id="task-title"
+          type="text"
+          data-i18n-placeholder="tasks.titlePlaceholder"
+          placeholder="New task for the team…"
+          autocomplete="off"
+        />
         <textarea
           id="task-detail"
           rows="2"
+          data-i18n-placeholder="tasks.detailPlaceholder"
           placeholder="Describe the mission — what must exist when it is done?"
         ></textarea>
         <div class="composer-row">
-          <select id="task-assignee" aria-label="Assign task"></select>
-          <select id="task-priority" aria-label="Task priority">
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-            <option value="low">Low</option>
+          <select id="task-assignee" data-i18n-aria="tasks.assign" aria-label="Assign task"></select>
+          <select id="task-priority" data-i18n-aria="tasks.priority" aria-label="Task priority">
+            <option value="medium" data-i18n="priority.medium">Medium</option>
+            <option value="high" data-i18n="priority.high">High</option>
+            <option value="urgent" data-i18n="priority.urgent">Urgent</option>
+            <option value="low" data-i18n="priority.low">Low</option>
           </select>
-          <label class="team-toggle" title="One prompt: the lead splits it across several workers and reconciles the result">
+          <label class="team-toggle" data-i18n-title="tasks.teamTitle">
             <input id="task-team" type="checkbox" />
-            <span>Team</span>
+            <span data-i18n="tasks.team">Team</span>
           </label>
-          <button class="btn btn-primary" type="submit">Add</button>
+          <button class="btn btn-primary" type="submit" data-i18n="common.add">Add</button>
         </div>
       </form>
+      <section id="failure-strip" class="failure-strip" hidden>
+        <div class="failure-head">
+          <h3 data-i18n="failure.title">Why work blocked</h3>
+          <span id="failure-total" class="counter">0</span>
+        </div>
+        <p class="failure-subtitle" data-i18n="failure.subtitle">Grouped by cause — the top row is what to fix next.</p>
+        <ul id="failure-list" class="failure-list"></ul>
+      </section>
       <div id="task-board" class="board"></div>
     </aside>
 
     <aside id="right-panel" class="panel panel-right">
       <section class="roster-block">
         <div class="panel-head">
-          <h2>Team</h2>
+          <h2 data-i18n="team.title">Team</h2>
           <span id="roster-count" class="counter">0</span>
         </div>
         <div id="roster" class="roster"></div>
@@ -92,99 +114,115 @@
 
       <section class="chat-block">
         <div class="panel-head">
-          <h2 id="chat-title">Select an agent</h2>
-          <button id="chat-follow" class="icon-btn" type="button" aria-label="Follow agent" disabled></button>
+          <h2 id="chat-title" data-i18n="chat.select">Select an agent</h2>
+          <button id="chat-follow" class="icon-btn" type="button" data-i18n-aria="chat.follow" disabled></button>
         </div>
         <div id="chat-log" class="chat-log">
-          <p class="empty-note">Pick a teammate to talk to them. They keep working while you chat.</p>
+          <p class="empty-note" data-i18n="chat.empty">Pick a teammate to talk to them. They keep working while you chat.</p>
         </div>
         <form id="chat-form" class="composer">
-          <textarea id="chat-input" rows="2" placeholder="Ask Aria to…" disabled></textarea>
-          <button class="btn btn-primary" type="submit" disabled>Send</button>
+          <textarea
+            id="chat-input"
+            rows="2"
+            data-i18n-placeholder="chat.placeholder"
+            placeholder="Ask Aria to…"
+            disabled
+          ></textarea>
+          <button class="btn btn-primary" type="submit" data-i18n="common.send" disabled>Send</button>
         </form>
       </section>
     </aside>
 
     <section id="activity-panel" class="panel panel-bottom" data-tab="activity">
       <div class="panel-head">
-        <div class="panel-tabs" role="tablist" aria-label="Activity and cost">
-          <button id="tab-activity" class="panel-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="activity-log" data-tab="activity">Activity</button>
-          <button id="tab-cost" class="panel-tab" type="button" role="tab" aria-selected="false" aria-controls="cost-view" data-tab="cost">Costs</button>
+        <div class="panel-tabs" role="tablist" data-i18n-aria="activity.aria">
+          <button id="tab-activity" class="panel-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="activity-log" data-tab="activity" data-i18n="activity.title">Activity</button>
+          <button id="tab-cost" class="panel-tab" type="button" role="tab" aria-selected="false" aria-controls="cost-view" data-tab="cost" data-i18n="activity.costs">Costs</button>
+          <button id="tab-playbook" class="panel-tab" type="button" role="tab" aria-selected="false" aria-controls="playbook-view" data-tab="playbook" data-i18n="activity.playbook">Playbook</button>
         </div>
         <span id="cost-grand-total" class="counter cost-counter" hidden></span>
-        <button id="activity-toggle" class="icon-btn" type="button" aria-label="Collapse panel"></button>
+        <button id="activity-toggle" class="icon-btn" type="button" data-i18n-aria="activity.collapse"></button>
       </div>
       <ul id="activity-log" class="activity-list" role="tabpanel" aria-labelledby="tab-activity"></ul>
       <div id="cost-view" class="cost-panel" role="tabpanel" aria-labelledby="tab-cost" hidden>
-        <p class="empty-note">Finished missions appear here with what each one cost.</p>
+        <p class="empty-note" data-i18n="cost.emptyInitial">Finished missions appear here with what each one cost.</p>
       </div>
+      <div id="playbook-view" class="briefing-panel" role="tabpanel" aria-labelledby="tab-playbook" hidden></div>
     </section>
 
     <div id="scene-hint" class="scene-hint">
-      <span><b>Drag</b> orbit</span><span><b>Scroll</b> zoom</span><span><b>Shift+drag</b> pan</span><span><b>Click</b> a worker</span>
+      <span data-i18n="hint.drag">Drag — orbit</span>
+      <span data-i18n="hint.scroll">Scroll — zoom</span>
+      <span data-i18n="hint.pan">Shift+drag — pan</span>
+      <span data-i18n="hint.click">Click a worker</span>
     </div>
 
     <div id="settings-modal" class="modal" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div class="panel-head">
-          <h2 id="settings-title">Connection</h2>
-          <button id="settings-close" class="icon-btn" type="button" aria-label="Close settings"></button>
+          <h2 id="settings-title" data-i18n="settings.title">Connection</h2>
+          <button id="settings-close" class="icon-btn" type="button" data-i18n-aria="settings.close"></button>
         </div>
         <form id="settings-form" class="settings-form">
           <label>
-            <span>Endpoint</span>
+            <span data-i18n="settings.language">Language</span>
+            <select id="settings-language"></select>
+            <small class="field-hint" data-i18n="settings.languageHint">The team writes its notes and summaries in this language.</small>
+          </label>
+          <label>
+            <span data-i18n="settings.endpoint">Endpoint</span>
             <input id="settings-endpoint" type="url" value="https://ai.sinarcloud.com/v1" spellcheck="false" />
           </label>
           <label>
-            <span>API key</span>
+            <span data-i18n="settings.apiKey">API key</span>
             <input id="settings-key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false" />
           </label>
           <label>
-            <span>Model</span>
+            <span data-i18n="settings.model">Model</span>
             <input id="settings-model" type="text" value="deepseek/deepseek-v4-1-flash" list="model-options" spellcheck="false" />
             <datalist id="model-options"></datalist>
             <small id="model-hint" class="field-hint">Free model: deepseek/deepseek-v4-1-flash</small>
           </label>
           <label class="switch-row">
-            <span>Give agents sandboxed file &amp; shell access</span>
+            <span data-i18n="settings.tools">Give agents sandboxed file &amp; shell access</span>
             <input id="settings-tools" type="checkbox" />
           </label>
           <label class="switch-row">
-            <span>Allow web search &amp; page fetch</span>
+            <span data-i18n="settings.web">Allow web search &amp; page fetch</span>
             <input id="settings-web" type="checkbox" />
           </label>
           <label class="switch-row">
-            <span>Demo mode (scripted workers, no API calls)</span>
+            <span data-i18n="settings.demo">Demo mode (scripted workers, no API calls)</span>
             <input id="settings-demo" type="checkbox" />
           </label>
 
           <section class="workspace-field">
             <div class="workspace-head">
-              <h3>Workspace folder</h3>
-              <button id="workspace-browse" class="btn btn-ghost btn-sm" type="button">Browse…</button>
+              <h3 data-i18n="settings.workspace">Workspace folder</h3>
+              <button id="workspace-browse" class="btn btn-ghost btn-sm" type="button" data-i18n="settings.browse">Browse…</button>
             </div>
             <p class="workspace-current" id="workspace-current">—</p>
             <div class="workspace-browser" id="workspace-browser" hidden>
               <div class="workspace-bar">
-                <button id="workspace-up" class="icon-btn" type="button" aria-label="Parent folder"></button>
+                <button id="workspace-up" class="icon-btn" type="button" data-i18n-aria="settings.parent"></button>
                 <span class="workspace-crumb" id="workspace-crumb"></span>
               </div>
               <ul class="workspace-list" id="workspace-list"></ul>
               <div class="workspace-actions">
-                <button id="workspace-choose" class="btn btn-primary btn-sm" type="button">Use this folder</button>
-                <button id="workspace-cancel" class="btn btn-ghost btn-sm" type="button">Cancel</button>
+                <button id="workspace-choose" class="btn btn-primary btn-sm" type="button" data-i18n="settings.useFolder">Use this folder</button>
+                <button id="workspace-cancel" class="btn btn-ghost btn-sm" type="button" data-i18n="common.cancel">Cancel</button>
               </div>
             </div>
-            <small class="field-hint">Agents can read and write files only inside this folder.</small>
+            <small class="field-hint" data-i18n="settings.workspaceHint">Agents can read and write files only inside this folder.</small>
           </section>
 
           <p id="settings-status" class="settings-status" role="status"></p>
           <div class="modal-actions">
-            <button class="btn btn-ghost" type="button" id="settings-disconnect">Disconnect</button>
-            <button class="btn btn-primary" type="submit">Connect</button>
+            <button class="btn btn-ghost" type="button" id="settings-disconnect" data-i18n="settings.disconnect">Disconnect</button>
+            <button class="btn btn-primary" type="submit" data-i18n="settings.connect">Connect</button>
           </div>
         </form>
-        <p class="settings-note">
+        <p class="settings-note" data-i18n="settings.note">
           Keys stay in server memory for this session only — they are never written to disk and never
           sent to the browser.
         </p>

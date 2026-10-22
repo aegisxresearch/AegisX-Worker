@@ -8,9 +8,13 @@ import type {
   SessionSnapshot,
   Task,
 } from '../../shared/types.ts';
+import { LOCALES } from '../../shared/i18n.ts';
+import { applyLocale, bootLocale, getLocale } from './core/locale.ts';
 import { api, subscribeEvents } from './core/net.ts';
 import { OfficeStore } from './core/store.ts';
 import { OfficeScene } from './scene/officeScene.ts';
+import { BottomTabs } from './ui/bottomTabs.ts';
+import { BriefingPanel } from './ui/briefing.ts';
 import { ChatPanel } from './ui/chat.ts';
 import { CostPanel } from './ui/costPanel.ts';
 import { SettingsPanel } from './ui/settings.ts';
@@ -38,7 +42,44 @@ const scene = new OfficeScene({
 });
 
 const settingsPanel = new SettingsPanel();
-const costPanel = new CostPanel();
+const tabs = new BottomTabs();
+tabs.register('activity', 'tab-activity', 'activity-log');
+tabs.register('cost', 'tab-cost', 'cost-view');
+tabs.register('playbook', 'tab-playbook', 'playbook-view');
+const costPanel = new CostPanel(tabs);
+const briefingPanel = new BriefingPanel(tabs);
+
+// Language is a display choice, restored before the first render so the office
+// never flashes English at an operator who chose Indonesian.
+const languageSelect = document.getElementById('settings-language') as HTMLSelectElement;
+for (const entry of LOCALES) {
+  const option = document.createElement('option');
+  option.value = entry.id;
+  option.textContent = entry.label;
+  languageSelect.append(option);
+}
+/**
+ * The team writes in the language the board is read in, so the browser tells
+ * the server which one that is. A failed request is not worth interrupting the
+ * operator for: the office keeps the language it already had.
+ */
+function syncTeamLanguage(): void {
+  void api.post('/api/session/locale', { locale: getLocale() }).catch(() => undefined);
+}
+
+bootLocale();
+syncTeamLanguage();
+languageSelect.value = getLocale();
+languageSelect.addEventListener('change', () => {
+  applyLocale(languageSelect.value === 'id' ? 'id' : 'en');
+  syncTeamLanguage();
+  // Panels read the dictionary at render time; the chat and the cost panel
+  // wrote their labels once, so they rebuild before the store event.
+  chat.relocalize();
+  store.emit();
+  costPanel.relocalize();
+  briefingPanel.relocalize();
+});
 
 const panels = new OfficePanels({
   onSelectAgent: (agentId) => store.selectAgent(agentId),
@@ -76,6 +117,10 @@ store.subscribe((state) => {
 function hydrate(snapshot: SessionSnapshot): void {
   store.state.connected = true;
   store.setSettings(snapshot.settings);
+  // The office boots in its own default language; a fresh state folder or a
+  // resumed browser tab would otherwise leave the team writing English while
+  // the board is read in Indonesian. The browser re-asserts what it shows.
+  if (snapshot.settings.locale !== getLocale()) syncTeamLanguage();
   store.replaceAgents(snapshot.agents);
   store.replaceTasks(snapshot.tasks);
   store.replaceLogs(snapshot.logs);

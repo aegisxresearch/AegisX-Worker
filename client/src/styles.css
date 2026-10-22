@@ -317,6 +317,12 @@ body {
   max-height: 340px;
 }
 
+/* The playbook is prose, so it gets the widest panel the screen allows. */
+.panel-bottom[data-tab="playbook"] {
+  width: min(980px, calc(100vw - 32px));
+  max-height: min(460px, calc(100vh - 200px));
+}
+
 .cost-panel {
   display: flex;
   flex-direction: column;
@@ -410,6 +416,159 @@ body {
   color: var(--amber);
 }
 
+/* ── Playbook: the instruction workers run under ─────────────────────────── */
+
+.briefing-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 10px 16px 18px;
+}
+
+/* `display: flex` above would otherwise beat the user-agent [hidden] rule. */
+.briefing-panel[hidden] {
+  display: none;
+}
+
+.briefing-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  border-left: 2px solid var(--line-strong);
+  padding-left: 10px;
+}
+
+.briefing-heading {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--amber-dim);
+}
+
+.briefing-rules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2px 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: doctrine;
+}
+
+.briefing-rule {
+  counter-increment: doctrine;
+  padding: 9px 0 9px 26px;
+  border-top: 1px solid var(--line);
+  position: relative;
+}
+
+.briefing-rule::before {
+  content: counter(doctrine, decimal-leading-zero);
+  position: absolute;
+  left: 0;
+  top: 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.briefing-rule-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 620;
+  color: var(--text);
+}
+
+.briefing-rule-text {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.briefing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.briefing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: oklch(100% 0 0 / 3%);
+}
+
+/* One wide card breaks the even grid, and the lead pack is the one a reader
+   wants first: every mission starts there. */
+.briefing-card:first-child {
+  grid-column: span 2;
+  background: oklch(100% 0 0 / 5%);
+}
+
+@media (max-width: 760px) {
+  .briefing-card:first-child {
+    grid-column: span 1;
+  }
+}
+
+.briefing-pack-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--text);
+}
+
+.briefing-label {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.briefing-list {
+  margin: 0;
+  padding-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.briefing-list li::marker {
+  color: var(--amber-dim);
+}
+
+/* What the reviewer refused under this pack. Separated from the instruction
+   above it: the rules are the model's text, this is the record of it not
+   landing. */
+.briefing-refusal {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.briefing-refusal.is-rule {
+  padding-left: 9px;
+  border-left: 2px solid var(--amber-dim);
+  color: var(--text-faint);
+}
+
 .roster-tail {
   display: flex;
   align-items: center;
@@ -437,6 +596,25 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--amber-dim);
   cursor: help;
+}
+
+/* The playbook a card runs under. Quiet by default: it is context, not a
+   status, and the tooltip carries who chose it. */
+.task-card .task-pack {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  cursor: help;
+  transition: border-color 140ms var(--ease), color 140ms var(--ease);
+}
+
+.task-card:hover .task-pack {
+  border-color: var(--amber-dim);
+  color: var(--amber);
 }
 
 .usage-block {
@@ -774,6 +952,71 @@ textarea::placeholder {
 .task-tag.is-sub {
   color: var(--text-dim);
   border-color: var(--line);
+}
+
+/* ── Failure ledger ─────────────────────────────────────────────────────── */
+
+.failure-strip {
+  margin: 0 12px 4px;
+  padding: 9px 11px 10px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--red);
+  border-radius: var(--radius-md);
+  background: oklch(22% 0.02 22 / 55%);
+}
+
+.failure-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.failure-head h3 {
+  margin: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.failure-subtitle {
+  margin: 3px 0 7px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+
+.failure-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.failure-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  cursor: help;
+  border-radius: var(--radius-sm);
+  padding: 1px 2px;
+}
+
+.failure-row:hover {
+  background: oklch(100% 0 0 / 4%);
+  color: var(--text);
+}
+
+.failure-count {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--red);
 }
 
 /* ── Task board ─────────────────────────────────────────────────────────── */

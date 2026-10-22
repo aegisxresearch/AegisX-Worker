@@ -23,6 +23,12 @@ export interface LlmTool {
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  /**
+   * Images the model should look at, as data URLs. Kept beside `content` rather
+   * than inside it so every existing caller keeps working; the wire format
+   * turns this into an OpenAI content-part array.
+   */
+  images?: string[];
   /** Native tool calls requested by the assistant turn. */
   toolCalls?: LlmToolCall[];
   /** Set on `tool` messages to link the result back to its call. */
@@ -57,6 +63,23 @@ export function isModelUnavailableError(error: unknown): boolean {
   if ([402, 403, 404, 429].includes(error.status)) return true;
   if (error.status !== 400) return false;
   return /credit|balance|quota|not\s*found|unavailable|insufficient|no access|not\s*allowed/i.test(
+    error.message,
+  );
+}
+
+/**
+ * True for failures worth one more identical attempt: the endpoint hiccuped
+ * rather than rejecting the request. A 4xx is a statement about the request, so
+ * retrying it would only spend tokens on the same answer; 5xx, 408 and a broken
+ * socket are transient. 429 is excluded on purpose — it is handled by the model
+ * fallback, which changes the model instead of repeating the same call.
+ */
+export function isTransientModelError(error: unknown): boolean {
+  if (error instanceof LlmError) return error.status >= 500 || error.status === 408;
+  if (!(error instanceof Error)) return false;
+  if (error.name === 'AbortError') return false;
+  if (error.name === 'TimeoutError' || error.name === 'TypeError') return true;
+  return /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EPIPE|socket hang up|network|fetch failed/i.test(
     error.message,
   );
 }
@@ -175,6 +198,15 @@ export function serializeMessages(messages: LlmMessage[]): unknown[] {
           type: 'function',
           function: { name: call.name, arguments: call.arguments },
         })),
+      };
+    }
+    if (message.images && message.images.length > 0) {
+      return {
+        role: message.role,
+        content: [
+          ...(message.content.length > 0 ? [{ type: 'text', text: message.content }] : []),
+          ...message.images.map((url) => ({ type: 'image_url', image_url: { url } })),
+        ],
       };
     }
     return { role: message.role, content: message.content };

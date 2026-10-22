@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { isLocale } from '../../../shared/i18n.ts';
 import type { AgentRuntime } from '../agentRuntime.ts';
 import type { OfficeStore } from '../store.ts';
 import { listDirectories, normaliseRoot, saveRoot, WorkspaceError } from '../workspace.ts';
@@ -16,6 +17,14 @@ export function sessionRoutes(store: OfficeStore, runtime: AgentRuntime): Router
    */
   router.get('/usage', (_request, response) => {
     response.json(store.tokenSummary());
+  });
+
+  /**
+   * Blocked work grouped by cause. The board reads it from the snapshot; this
+   * endpoint is for scripts and for a CI job that wants the ranking after a run.
+   */
+  router.get('/failures', (_request, response) => {
+    response.json(store.failureBreakdown());
   });
 
   /** Finished work per day — what the cost history panel reads. */
@@ -61,6 +70,22 @@ export function sessionRoutes(store: OfficeStore, runtime: AgentRuntime): Router
       return;
     }
     store.setModel(body.model.trim());
+    store.publishSettings();
+    response.json({ ok: true, settings: store.publicSettings() });
+  });
+
+  /**
+   * The language the team writes in. The browser sends it when the operator
+   * switches language, so the next task note is written in the language the
+   * board is read in.
+   */
+  router.post('/session/locale', (request, response) => {
+    const body = request.body as { locale?: string };
+    if (!isLocale(body.locale)) {
+      response.status(400).json({ ok: false, message: 'Locale must be "en" or "id".' });
+      return;
+    }
+    store.setLocale(body.locale);
     store.publishSettings();
     response.json({ ok: true, settings: store.publicSettings() });
   });

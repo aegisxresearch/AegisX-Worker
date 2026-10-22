@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { REPO_ROOT } from './config.ts';
+import { STATE_DIR } from './config.ts';
 
 /** Raised when a path or root folder breaks the workspace boundary. */
 export class WorkspaceError extends Error {
@@ -94,11 +94,16 @@ export async function listDirectories(directory: string): Promise<DirectoryListi
   };
 }
 
-const STATE_FILE = path.join(REPO_ROOT, '.agent-office', 'workspace.json');
+/**
+ * The folder the operator picked last time. It lives beside the rest of the
+ * office state, so a check that brings its own state folder also gets its own
+ * pick — and can never inherit the operator's real project by accident.
+ */
+export const WORKSPACE_STATE_FILE = path.join(STATE_DIR, 'workspace.json');
 
 /** Reads the workspace folder the operator picked in a previous session. */
 export async function loadSavedRoot(): Promise<string | null> {
-  const raw = await fs.readFile(STATE_FILE, 'utf8').catch(() => null);
+  const raw = await fs.readFile(WORKSPACE_STATE_FILE, 'utf8').catch(() => null);
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -111,6 +116,6 @@ export async function loadSavedRoot(): Promise<string | null> {
 
 /** Persists the workspace folder so it survives a restart. */
 export async function saveRoot(root: string): Promise<void> {
-  await fs.mkdir(path.dirname(STATE_FILE), { recursive: true });
-  await fs.writeFile(STATE_FILE, `${JSON.stringify({ root }, null, 2)}\n`, 'utf8');
+  await fs.mkdir(path.dirname(WORKSPACE_STATE_FILE), { recursive: true });
+  await fs.writeFile(WORKSPACE_STATE_FILE, `${JSON.stringify({ root }, null, 2)}\n`, 'utf8');
 }

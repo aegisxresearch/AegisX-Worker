@@ -1,5 +1,9 @@
+import { getLocale, t, type Locale, type MessageKey } from '../../../shared/i18n.ts';
 import type { AgentProfile, LogEntry, Task, TokenUsage } from '../../../shared/types.ts';
+import { logText, noteText } from '../../../shared/wording.ts';
 import { childrenOf, missionUsage } from '../../../shared/usage.ts';
+import { FAILURE_LABELS, FAILURE_NEXT_STEPS, summariseFailures } from '../../../shared/failures.ts';
+import { PACK_SOURCE_KEYS, packLabelKey } from '../../../shared/packs.ts';
 import { api } from '../core/net.ts';
 import type { OfficeState } from '../core/store.ts';
 import { button, clear, el, formatTime, formatTokens, icon } from './dom.ts';
@@ -12,12 +16,19 @@ export interface PanelCallbacks {
   onOpenCost: () => void;
 }
 
-const COLUMNS: { status: Task['status']; label: string }[] = [
-  { status: 'todo', label: 'To do' },
-  { status: 'doing', label: 'Doing' },
-  { status: 'blocked', label: 'Blocked' },
-  { status: 'done', label: 'Done' },
+const COLUMNS: { status: Task['status']; label: MessageKey }[] = [
+  { status: 'todo', label: 'status.todo' },
+  { status: 'doing', label: 'status.doing' },
+  { status: 'blocked', label: 'status.blocked' },
+  { status: 'done', label: 'status.done' },
 ];
+
+const PRIORITY_LABEL: Record<Task['priority'], MessageKey> = {
+  low: 'priority.low',
+  medium: 'priority.medium',
+  high: 'priority.high',
+  urgent: 'priority.urgent',
+};
 
 /**
  * Starter briefs for the four things people ask for first. Each one fills the
@@ -26,12 +37,12 @@ const COLUMNS: { status: Task['status']; label: string }[] = [
  */
 const MISSION_PRESETS: Record<
   string,
-  { title: string; detail: string; role?: string; team?: boolean }
+  { titleKey: MessageKey; detail: string; role?: string; team?: boolean }
 > = {
   app: {
     role: 'lead',
     team: true,
-    title: 'Build an app I can run today',
+    titleKey: 'preset.app.title',
     detail:
       'Ship a working app in this folder from one brief. Lead splits the work across the team.\n' +
       'Scope: one primary flow, done end to end, not a shell with placeholders.\n' +
@@ -41,7 +52,7 @@ const MISSION_PRESETS: Record<
   },
   website: {
     role: 'frontend',
-    title: 'Build a responsive landing page',
+    titleKey: 'preset.website.title',
     detail:
       'Create a landing page for a small business in this folder.\n' +
       'Deliver index.html, styles.css and script.js only if the page needs behaviour. No build step.\n' +
@@ -51,7 +62,7 @@ const MISSION_PRESETS: Record<
   },
   bug: {
     role: 'backend',
-    title: 'Find and fix a bug in this folder',
+    titleKey: 'preset.bug.title',
     detail:
       'Read the code in this folder, find one real bug, and fix it at the cause — no suppression, no TODO.\n' +
       'First reproduce it (run the project or the failing test), then patch, then re-run the same check.\n' +
@@ -59,7 +70,7 @@ const MISSION_PRESETS: Record<
   },
   docs: {
     role: 'product',
-    title: 'Document how this project works',
+    titleKey: 'preset.docs.title',
     detail:
       'Read the code in this folder and write README.md for someone who has never seen it.\n' +
       'Cover what it does, how to run it, the folder layout, the main entry points and one worked example.\n' +
@@ -67,7 +78,7 @@ const MISSION_PRESETS: Record<
   },
   audit: {
     role: 'qa',
-    title: 'Audit this folder and report the risks',
+    titleKey: 'preset.audit.title',
     detail:
       'List the files, read the important ones, and write AUDIT.md with: structure, obvious bugs,\n' +
       'missing tests, hardcoded secrets or unsafe defaults, and the three changes with the highest payoff.\n' +
@@ -75,12 +86,12 @@ const MISSION_PRESETS: Record<
   },
 };
 
-const STATUS_LABEL: Record<AgentProfile['status'], string> = {
-  idle: 'Idle',
-  working: 'Working',
-  blocked: 'Blocked',
-  error: 'Error',
-  meeting: 'In meeting',
+const STATUS_LABEL: Record<AgentProfile['status'], MessageKey> = {
+  idle: 'agent.idle',
+  working: 'agent.working',
+  blocked: 'agent.blocked',
+  error: 'agent.error',
+  meeting: 'agent.meeting',
 };
 
 /** Roster, task board, activity log and the connection pill. */
@@ -97,6 +108,8 @@ export class OfficePanels {
   readonly #spendTotal = document.getElementById('spend-total') as HTMLElement | null;
   #expandedTaskId: string | null = null;
   #renderedLogIds = new Set<string>();
+  /** The language the drawn log lines were written in. */
+  #logLocale: Locale = getLocale();
   /** The most expensive step currently on screen, so the log can flag it. */
   #costliestLogId: string | null = null;
   #costliestTokens = 0;
@@ -117,7 +130,7 @@ export class OfficePanels {
       if (!preset) return;
       const title = document.getElementById('task-title') as HTMLInputElement;
       const detail = document.getElementById('task-detail') as HTMLTextAreaElement;
-      title.value = preset.title;
+      title.value = t(preset.titleKey);
       detail.value = preset.detail;
       if (this.#teamToggle) this.#teamToggle.checked = preset.team === true;
       this.#syncTeamMode();
@@ -187,9 +200,11 @@ export class OfficePanels {
   }
 
   render(state: OfficeState): void {
+    this.#resetLogIfRelocalized();
     this.#renderRoster(state);
     this.#renderBoard(state);
     this.#renderActivity(state.logs);
+    this.#renderFailures(state);
     this.#renderPill(state);
     this.#renderSpend(state);
     this.#renderAssigneeOptions(state);
@@ -234,6 +249,43 @@ export class OfficePanels {
     ].join('\n');
   }
 
+  /**
+   * Why work blocked, ranked by cause.
+   *
+   * The board could already show a task as blocked, but not why — so the
+   * operator's question ("why does this keep failing?") had no answer on
+   * screen. The counts come from the tasks already in the store, so the strip
+   * cannot drift from the board.
+   */
+  #renderFailures(state: OfficeState): void {
+    const strip = document.getElementById('failure-strip');
+    const list = document.getElementById('failure-list');
+    const total = document.getElementById('failure-total');
+    if (!strip || !list || !total) return;
+
+    const failures = summariseFailures([...state.tasks.values()]);
+    if (failures.total === 0) {
+      strip.hidden = true;
+      return;
+    }
+
+    strip.hidden = false;
+    total.textContent = String(failures.total);
+    clear(list);
+    for (const { reason, count } of failures.reasons.slice(0, 4)) {
+      const row = el('li', 'failure-row');
+      const label = el('span', 'failure-label', t(FAILURE_LABELS[reason]));
+      const counter = el('span', 'failure-count', String(count));
+      const titles = failures.tasks
+        .filter((entry) => entry.reason === reason)
+        .slice(0, 4)
+        .map((entry) => entry.title);
+      row.title = [t(FAILURE_NEXT_STEPS[reason]), '', ...titles].join('\n').trim();
+      row.append(label, counter);
+      list.append(row);
+    }
+  }
+
   #renderRoster(state: OfficeState): void {
     const agents = [...state.agents.values()];
     this.#rosterCount.textContent = String(agents.length);
@@ -261,7 +313,7 @@ export class OfficePanels {
         tail.append(meter);
       }
 
-      const chip = el('span', 'status-chip', STATUS_LABEL[agent.status]);
+      const chip = el('span', 'status-chip', t(STATUS_LABEL[agent.status]));
       chip.dataset.status = agent.status;
       tail.append(chip);
       row.append(tail);
@@ -275,7 +327,7 @@ export class OfficePanels {
     const select = this.#assigneeSelect;
     const current = select.value;
     clear(select);
-    const unassigned = el('option', undefined, 'Unassigned');
+    const unassigned = el('option', undefined, t('common.unassigned'));
     unassigned.value = '';
     select.append(unassigned);
     for (const agent of state.agents.values()) {
@@ -293,7 +345,7 @@ export class OfficePanels {
     for (const column of COLUMNS) {
       const columnNode = el('div', 'board-column');
       const heading = el('h3');
-      heading.append(document.createTextNode(column.label));
+      heading.append(document.createTextNode(t(column.label)));
       const counter = el('span', 'counter');
       heading.append(counter);
       columnNode.append(heading);
@@ -314,8 +366,8 @@ export class OfficePanels {
     card.dataset.taskId = task.id;
 
     const title = el('div', 'task-title');
-    if (task.mission) title.append(el('span', 'task-tag', 'team'));
-    else if (task.parentId) title.append(el('span', 'task-tag is-sub', 'sub'));
+    if (task.mission) title.append(el('span', 'task-tag', t('task.tagTeam')));
+    else if (task.parentId) title.append(el('span', 'task-tag is-sub', t('task.tagSub')));
     title.append(document.createTextNode(task.title));
     card.append(title);
 
@@ -328,10 +380,26 @@ export class OfficePanels {
       holder.append(dot, document.createTextNode(assignee.name));
       meta.append(holder);
     } else {
-      meta.append(document.createTextNode('Unassigned'));
+      meta.append(document.createTextNode(t('common.unassigned')));
     }
     meta.append(document.createTextNode('· '));
-    meta.append(document.createTextNode(task.priority));
+    meta.append(document.createTextNode(t(PRIORITY_LABEL[task.priority])));
+
+    // The bar this task is judged against, on the card. A choice the operator
+    // cannot see is a choice they cannot correct.
+    if (task.activePack) {
+      const labelKey = packLabelKey(task.activePack);
+      const packName = labelKey ? t(labelKey) : task.activePack;
+      const playbook = el('span', 'task-pack', t('task.packChip', { pack: packName }));
+      // A state file from before this field existed has no source; the generic
+      // reason is the honest one for it.
+      const whyKey =
+        task.packSource && task.packSource in PACK_SOURCE_KEYS
+          ? PACK_SOURCE_KEYS[task.packSource]
+          : PACK_SOURCE_KEYS.default;
+      playbook.title = t(whyKey);
+      meta.append(document.createTextNode('· '), playbook);
+    }
 
     const spend = missionUsage(task.id, state.tasks.values());
     if (spend.totalTokens > 0) {
@@ -363,7 +431,7 @@ export class OfficePanels {
     }
     if (task.notes.length > 0) {
       const notes = el('ul', 'task-notes');
-      for (const note of task.notes) notes.append(el('li', undefined, note));
+      for (const note of task.notes) notes.append(el('li', undefined, noteText(note)));
       details.append(notes);
     }
 
@@ -374,7 +442,7 @@ export class OfficePanels {
     controls.style.marginTop = '8px';
 
     const select = el('select');
-    const unassigned = el('option', undefined, 'Unassigned');
+    const unassigned = el('option', undefined, t('common.unassigned'));
     unassigned.value = '';
     select.append(unassigned);
     for (const agent of state.agents.values()) {
@@ -389,13 +457,13 @@ export class OfficePanels {
     controls.append(select);
 
     if (task.status !== 'done') {
-      const start = el('button', 'btn btn-primary', 'Start');
+      const start = el('button', 'btn btn-primary', t('common.start'));
       start.type = 'button';
       start.addEventListener('click', () => this.#callbacks.onStartTask(task.id));
       controls.append(start);
     }
 
-    const remove = button('trash', 'Delete task');
+    const remove = button('trash', t('common.deleteTask'));
     remove.addEventListener('click', () => this.#callbacks.onDeleteTask(task.id));
     controls.append(remove);
 
@@ -411,17 +479,20 @@ export class OfficePanels {
   #renderUsageBlock(task: Task, state: OfficeState): HTMLElement | null {
     const rows: { label: string; usage: TokenUsage }[] = [];
     if (task.usage.totalTokens > 0) {
-      rows.push({ label: 'This task', usage: task.usage });
+      rows.push({ label: t('task.thisTask'), usage: task.usage });
     }
     for (const child of childrenOf(task.id, state.tasks.values())) {
       if (child.usage.totalTokens === 0) continue;
       const owner = child.assigneeId ? state.agents.get(child.assigneeId) : undefined;
-      rows.push({ label: `${owner?.name ?? 'Unassigned'} — ${child.title}`, usage: child.usage });
+      rows.push({
+        label: `${owner?.name ?? t('common.unassigned')} — ${child.title}`,
+        usage: child.usage,
+      });
     }
     if (rows.length === 0) return null;
 
     const block = el('div', 'usage-block');
-    block.append(el('div', 'usage-head', 'Token meter'));
+    block.append(el('div', 'usage-head', t('task.meter')));
 
     const list = el('ul', 'usage-rows');
     for (const row of rows) {
@@ -439,12 +510,27 @@ export class OfficePanels {
     if (rows.length > 1) {
       const total = missionUsage(task.id, state.tasks.values());
       const footer = el('div', 'usage-total');
-      footer.append(el('span', undefined, 'Mission total'));
+      footer.append(el('span', undefined, t('task.missionTotal')));
       footer.append(el('strong', undefined, `${total.totalTokens.toLocaleString()} tok · ${total.turns} turn(s)`));
       block.append(footer);
     }
 
     return block;
+  }
+
+  /**
+   * The log is appended to, not rebuilt, so lines already on screen keep the
+   * words they were drawn with. A language switch invalidates them; this drops
+   * them and lets the next render redraw the whole window.
+   */
+  #resetLogIfRelocalized(): void {
+    const locale = getLocale();
+    if (locale === this.#logLocale) return;
+    this.#logLocale = locale;
+    this.#renderedLogIds.clear();
+    this.#costliestLogId = null;
+    this.#costliestTokens = 0;
+    clear(this.#activity);
   }
 
   #renderActivity(logs: LogEntry[]): void {
@@ -457,7 +543,7 @@ export class OfficePanels {
       item.dataset.level = entry.level;
       item.dataset.entryId = entry.id;
       item.append(el('span', 'at', formatTime(entry.at)));
-      item.append(el('span', 'msg', entry.message));
+      item.append(el('span', 'msg', logText(entry)));
 
       const tokens = entry.tokens;
       if (tokens && tokens.totalTokens > 0) {
@@ -489,7 +575,7 @@ export class OfficePanels {
     previous?.querySelector('.cost-flag')?.remove();
 
     item.classList.add('is-costliest');
-    item.append(el('span', 'cost-flag', 'top cost'));
+    item.append(el('span', 'cost-flag', t('task.topCost')));
     this.#costliestLogId = entryId;
     this.#costliestTokens = tokens;
   }
@@ -501,20 +587,20 @@ export class OfficePanels {
 
     if (!state.connected) {
       dot.dataset.state = 'offline';
-      text.textContent = 'Disconnected';
+      text.textContent = t('conn.disconnected');
       return;
     }
     if (!settings) {
       dot.dataset.state = 'offline';
-      text.textContent = 'Disconnected';
+      text.textContent = t('conn.disconnected');
       return;
     }
     if (settings.demoMode || !settings.configured) {
       dot.dataset.state = 'demo';
-      text.textContent = 'Demo mode · no API key';
+      text.textContent = t('conn.demo');
       return;
     }
     dot.dataset.state = 'live';
-    text.textContent = `Live · ${settings.model}`;
+    text.textContent = t('conn.live', { model: settings.model });
   }
 }

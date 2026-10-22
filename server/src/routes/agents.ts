@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { AgentRuntime } from '../agentRuntime.ts';
+import { playbook } from '../rolePacks.ts';
 import type { OfficeStore } from '../store.ts';
 
 export function agentRoutes(store: OfficeStore, runtime: AgentRuntime): Router {
@@ -7,6 +8,14 @@ export function agentRoutes(store: OfficeStore, runtime: AgentRuntime): Router {
 
   router.get('/agents', (_request, response) => {
     response.json([...store.agents.values()]);
+  });
+
+  // The playbook is not configuration the operator edits — it is the text the
+  // workers are running under, exposed so it can be read and audited like code.
+  router.get('/playbook', (_request, response) => {
+    // Refusals come from the board, so the tab can show which pack's bar the
+    // reviewer keeps rejecting without a second request.
+    response.json(playbook(store.allTasks()));
   });
 
   router.post('/agents', (request, response) => {

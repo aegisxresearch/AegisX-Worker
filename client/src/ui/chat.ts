@@ -1,3 +1,4 @@
+import { t } from '../../../shared/i18n.ts';
 import type { ChatMessage } from '../../../shared/types.ts';
 import type { OfficeState } from '../core/store.ts';
 import { button, clear, el, icon } from './dom.ts';
@@ -44,6 +45,16 @@ export class ChatPanel {
     });
   }
 
+  /**
+   * Forgets the rendered bubbles so the next render rebuilds them in the new
+   * language. Author labels are written once, when a bubble is created.
+   */
+  relocalize(): void {
+    this.#nodes.clear();
+    this.#currentAgentId = null;
+    clear(this.#log);
+  }
+
   render(state: OfficeState): void {
     const agentId = state.selectedAgentId;
     const agent = agentId ? state.agents.get(agentId) : undefined;
@@ -54,7 +65,7 @@ export class ChatPanel {
       clear(this.#log);
     }
 
-    this.#title.textContent = agent ? `${agent.name} · ${agent.role}` : 'Select an agent';
+    this.#title.textContent = agent ? `${agent.name} · ${agent.role}` : t('chat.select');
     this.#input.disabled = !agent;
     const sendButton = this.#form.querySelector('button') as HTMLButtonElement | null;
     if (sendButton) sendButton.disabled = !agent;
@@ -65,7 +76,7 @@ export class ChatPanel {
 
     if (!agent) {
       if (this.#log.childElementCount === 0) {
-        const note = el('p', 'empty-note', 'Pick a teammate to talk to them. They keep working while you chat.');
+        const note = el('p', 'empty-note', t('chat.empty'));
         this.#log.append(note);
       }
       return;
@@ -88,7 +99,7 @@ export class ChatPanel {
     const bubble = el('div', `bubble ${message.role === 'user' ? 'user' : 'agent'}`);
     if (message.role === 'assistant') {
       const author = el('span', 'bubble-author');
-      author.textContent = 'Agent';
+      author.textContent = t('chat.author');
       bubble.append(author);
     }
     const body = el('span', 'bubble-body', message.content);

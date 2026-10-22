@@ -9,15 +9,31 @@ import type {
   PublicSettings,
   SessionSnapshot,
   Task,
+  FailureSummary,
   TaskPriority,
   TaskStatus,
   TokenUsage,
   UsageHistory,
   UsageSummary,
 } from '../../shared/types.ts';
-import { addUsage, coerceUsage, emptyUsage, usageHistory, usageSummary } from '../../shared/usage.ts';
-import { DEFAULT_ENDPOINT, DEFAULT_MODEL, FREE_MODEL, WEB_ENABLED, WORKSPACE_DIR } from './config.ts';
+import {
+  addUsage,
+  coerceUsage,
+  emptyUsage,
+  missionUsage,
+  usageHistory,
+  usageSummary,
+} from '../../shared/usage.ts';
+import {
+  DEFAULT_ENDPOINT,
+  DEFAULT_LOCALE,
+  DEFAULT_MODEL,
+  FREE_MODEL,
+  WEB_ENABLED,
+  WORKSPACE_DIR,
+} from './config.ts';
 import type { EventBus } from './events.ts';
+import { isFailureReason, summariseFailures } from '../../shared/failures.ts';
 
 export function shortId(prefix: string): string {
   return `${prefix}_${randomUUID().slice(0, 8)}`;
@@ -78,6 +94,7 @@ export class OfficeStore {
     webEnabled: WEB_ENABLED,
     workspaceRoot: WORKSPACE_DIR,
     demoMode: true,
+    locale: DEFAULT_LOCALE,
   };
 
   readonly agents = new Map<string, AgentProfile>();
@@ -139,6 +156,11 @@ export class OfficeStore {
     this.settings = { ...this.settings, workspaceRoot: root };
   }
 
+  /** The language the team writes in, not just the language the UI draws in. */
+  setLocale(locale: OfficeSettings['locale']): void {
+    this.settings = { ...this.settings, locale };
+  }
+
   publicSettings(): PublicSettings {
     const key = this.#apiKey;
     return {
@@ -149,6 +171,7 @@ export class OfficeStore {
       webEnabled: this.settings.webEnabled,
       workspaceRoot: this.settings.workspaceRoot,
       demoMode: this.settings.demoMode,
+      locale: this.settings.locale,
       configured: Boolean(key),
       maskedKey: key ? `${key.slice(0, 6)}…${key.slice(-4)}` : null,
       availableModels: this.#availableModels,
@@ -235,13 +258,24 @@ export class OfficeStore {
     assigneeId: string | null;
     parentId?: string | null;
     mission?: boolean;
+    dependsOn?: string[];
+    pack?: string | null;
   }): Task {
     const now = Date.now();
+    const id = shortId('task');
+    // Only real, distinct dependencies survive: an id the lead invented must
+    // not park the task forever.
+    const dependsOn = [...new Set(input.dependsOn ?? [])].filter(
+      (dependencyId) => dependencyId !== id && this.tasks.has(dependencyId),
+    );
+    // A task with an unfinished dependency is queued, even with an assignee:
+    // the runtime starts it when the last dependency is done.
+    const waiting = dependsOn.some((dependencyId) => this.tasks.get(dependencyId)?.status !== 'done');
     const task: Task = {
-      id: shortId('task'),
+      id,
       title: input.title.trim() || 'Untitled task',
       detail: input.detail,
-      status: input.assigneeId ? 'doing' : 'todo',
+      status: input.assigneeId && !waiting ? 'doing' : 'todo',
       priority: input.priority,
       assigneeId: input.assigneeId,
       createdAt: now,
@@ -249,7 +283,13 @@ export class OfficeStore {
       notes: [],
       parentId: input.parentId ?? null,
       mission: input.mission === true,
+      dependsOn,
+      pack: input.pack ?? null,
+      activePack: null,
+      packSource: null,
+      reviewRefusals: [],
       usage: emptyUsage(),
+      failureReason: null,
     };
     this.tasks.set(task.id, task);
     this.#bus.publish('task.updated', task);
@@ -269,6 +309,25 @@ export class OfficeStore {
     const task = this.tasks.get(id);
     if (!task) return null;
     return this.updateTask(id, { notes: [...task.notes, note] });
+  }
+
+  /**
+   * Records one reviewer refusal against the pack the change ran under. Capped
+   * per task: the last twenty are the evidence, and an agent stuck in a review
+   * loop must not grow the state file without bound.
+   */
+  recordReviewRefusal(id: string, pack: string, reasons: string[]): Task | null {
+    const task = this.tasks.get(id);
+    if (!task) return null;
+    const refusal = { at: Date.now(), pack, reasons: reasons.slice(0, 5) };
+    return this.updateTask(id, {
+      reviewRefusals: [...(task.reviewRefusals ?? []), refusal].slice(-20),
+    });
+  }
+
+  /** Every task, for readers that rank across the whole board. */
+  allTasks(): Task[] {
+    return [...this.tasks.values()];
   }
 
   removeTask(id: string): void {
@@ -296,6 +355,25 @@ export class OfficeStore {
     const task = this.tasks.get(taskId);
     if (!task) return;
     this.updateTask(taskId, { usage: addUsage(task.usage, usage) });
+  }
+
+  /**
+   * Top of a task's delegation tree. A subtask belongs to its mission root, so
+   * a budget check has to walk up before it can add anything up.
+   */
+  missionRootOf(taskId: string): string {
+    let current = this.tasks.get(taskId);
+    const seen = new Set<string>();
+    while (current?.parentId && !seen.has(current.id)) {
+      seen.add(current.id);
+      current = this.tasks.get(current.parentId);
+    }
+    return current?.id ?? taskId;
+  }
+
+  /** Tokens a task and every task under it have already spent. */
+  missionTokensOf(taskId: string): number {
+    return missionUsage(this.missionRootOf(taskId), this.tasks.values()).totalTokens;
   }
 
   /** Office-wide meter: total, per worker, per mission. */
@@ -404,6 +482,11 @@ export class OfficeStore {
       toolsEnabled: state.settings.toolsEnabled,
       webEnabled: state.settings.webEnabled,
       workspaceRoot: state.settings.workspaceRoot || this.settings.workspaceRoot,
+      // A restored file may predate this field; anything unexpected falls back
+      // to the office default rather than failing to boot.
+      locale: state.settings.locale === 'id' || state.settings.locale === 'en'
+        ? state.settings.locale
+        : this.settings.locale,
     };
 
     for (const agent of state.agents) {
@@ -411,10 +494,28 @@ export class OfficeStore {
       this.agents.set(agent.id, { ...agent, usage, tokensUsed: usage.totalTokens });
     }
     for (const task of state.tasks) {
-      this.tasks.set(task.id, { ...task, usage: coerceUsage(task.usage) });
+      // A file written before the failure ledger existed has no reason code;
+      // anything unexpected becomes `null` rather than an invalid union member.
+      this.tasks.set(task.id, {
+        ...task,
+        usage: coerceUsage(task.usage),
+        failureReason: isFailureReason(task.failureReason) ? task.failureReason : null,
+        // A file written before packs were recorded has neither field; an empty
+        // list is the honest answer, not an invented pack.
+        reviewRefusals: Array.isArray(task.reviewRefusals) ? task.reviewRefusals : [],
+      });
     }
     this.logs.push(...state.logs);
     this.chats.push(...state.chats.map((chat) => ({ ...chat, streaming: false })));
+  }
+
+  /**
+   * Blocked work grouped by cause. This is the number that turns "missions keep
+   * failing" into a ranked list, so it is part of the snapshot and of its own
+   * endpoint — a script can read it after a run without parsing logs.
+   */
+  failureBreakdown(): FailureSummary {
+    return summariseFailures([...this.tasks.values()]);
   }
 
   // ── snapshot ──────────────────────────────────────────────────────────────

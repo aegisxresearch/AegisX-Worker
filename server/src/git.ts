@@ -95,6 +95,12 @@ export async function createCheckpoint(root: string, label: string): Promise<Che
   const init = await runGit(root, ['init', '-q']);
   if (!init.ok) return { checkpoint: null, reason: `git init failed: ${init.stderr.slice(0, 200)}` };
   await writeLocalExcludes(root);
+  // Marks the repo as the office's own. Worktree isolation reads this marker and
+  // leaves such a folder alone: its commits are undo history, not a tree the
+  // operator asked to branch per task.
+  await fs
+    .writeFile(path.join(root, '.git', 'aegisx-checkpoint'), 'Created by the office for per-turn undo.\n', 'utf8')
+    .catch(() => undefined);
 
   await runGit(root, ['add', '-A']);
   const commit = await runGit(root, [

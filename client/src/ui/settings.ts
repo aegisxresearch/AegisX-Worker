@@ -1,3 +1,4 @@
+import { t } from '../../../shared/i18n.ts';
 import type { PublicSettings, WorkspaceListing } from '../../../shared/types.ts';
 import { api } from '../core/net.ts';
 import { clear, el, icon } from './dom.ts';
@@ -106,7 +107,7 @@ export class SettingsPanel {
     // The free model is pinned first: it is the safe default and the fallback.
     const freeOption = el('option');
     freeOption.value = settings.freeModel;
-    freeOption.textContent = `Free tier — ${settings.freeModel}`;
+    freeOption.textContent = t('settings.freeTier', { model: settings.freeModel });
     this.#modelOptions.append(freeOption);
 
     for (const model of settings.availableModels.slice(0, 60)) {
@@ -116,12 +117,12 @@ export class SettingsPanel {
       this.#modelOptions.append(option);
     }
 
-    this.#modelHint.textContent = `Free model: ${settings.freeModel} — used automatically if the selected model runs out of credit.`;
+    this.#modelHint.textContent = t('settings.freeHint', { model: settings.freeModel });
   }
 
   async #openBrowser(target: string): Promise<void> {
     this.#workspaceBrowser.hidden = false;
-    this.#workspaceList.replaceChildren(el('li', 'workspace-empty', 'Loading…'));
+    this.#workspaceList.replaceChildren(el('li', 'workspace-empty', t('common.loading')));
     try {
       const response = await api.get<{ ok: boolean; listing: WorkspaceListing; message?: string }>(
         `/api/session/workspace/list?path=${encodeURIComponent(target)}`,
@@ -133,7 +134,7 @@ export class SettingsPanel {
 
       clear(this.#workspaceList);
       if (response.listing.entries.length === 0) {
-        this.#workspaceList.append(el('li', 'workspace-empty', 'No sub-folders here.'));
+        this.#workspaceList.append(el('li', 'workspace-empty', t('settings.noSubfolders')));
       }
       for (const entry of response.listing.entries) {
         const row = el('li', 'workspace-row');
@@ -149,7 +150,11 @@ export class SettingsPanel {
     } catch (error) {
       clear(this.#workspaceList);
       this.#workspaceList.append(
-        el('li', 'workspace-empty', error instanceof Error ? error.message : 'Cannot read that folder.'),
+        el(
+          'li',
+          'workspace-empty',
+          error instanceof Error ? error.message : t('settings.cannotRead'),
+        ),
       );
     }
   }
@@ -162,9 +167,12 @@ export class SettingsPanel {
         { root: target },
       );
       this.#workspaceBrowser.hidden = true;
-      this.#setStatus(`Agents now work inside ${outcome.settings.workspaceRoot}.`, 'ok');
+      this.#setStatus(t('settings.workspaceSet', { path: outcome.settings.workspaceRoot }), 'ok');
     } catch (error) {
-      this.#setStatus(error instanceof Error ? error.message : 'Cannot use that folder.', 'error');
+      this.#setStatus(
+        error instanceof Error ? error.message : t('settings.cannotUse'),
+        'error',
+      );
     } finally {
       this.#workspaceChoose.disabled = false;
     }
@@ -173,20 +181,23 @@ export class SettingsPanel {
   async #saveWeb(enabled: boolean): Promise<void> {
     try {
       await api.post('/api/session/web', { enabled });
-      this.#setStatus(enabled ? 'Web access on — agents can search and fetch pages.' : 'Web access off.', 'ok');
+      this.#setStatus(enabled ? t('settings.webOn') : t('settings.webOff'), 'ok');
     } catch (error) {
       this.#web.checked = !enabled;
-      this.#setStatus(error instanceof Error ? error.message : 'Cannot change web access.', 'error');
+      this.#setStatus(
+        error instanceof Error ? error.message : t('settings.cannotChangeWeb'),
+        'error',
+      );
     }
   }
 
   async #connect(): Promise<void> {
     const apiKey = this.#key.value.trim();
     if (apiKey.length === 0) {
-      this.#setStatus('Paste an API key first.', 'error');
+      this.#setStatus(t('settings.pasteKey'), 'error');
       return;
     }
-    this.#setStatus('Connecting…', 'pending');
+    this.#setStatus(t('settings.connecting'), 'pending');
     this.#disconnect.disabled = true;
 
     try {
@@ -202,7 +213,10 @@ export class SettingsPanel {
         this.#demo.checked = false;
       }
     } catch (error) {
-      this.#setStatus(error instanceof Error ? error.message : 'Connection failed', 'error');
+      this.#setStatus(
+        error instanceof Error ? error.message : t('settings.connectionFailed'),
+        'error',
+      );
     } finally {
       this.#disconnect.disabled = false;
     }
@@ -212,7 +226,7 @@ export class SettingsPanel {
     await api.post('/api/session/demo', { enabled: true });
     this.#key.value = '';
     this.#demo.checked = true;
-    this.#setStatus('Disconnected — the office is running in demo mode.', 'ok');
+    this.#setStatus(t('settings.disconnected'), 'ok');
   }
 
   #setStatus(message: string, state: 'ok' | 'error' | 'pending'): void {
