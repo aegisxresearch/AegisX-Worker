@@ -499,7 +499,8 @@ export interface ToolAvailability {
   /**
    * Which slice of the toolkit to send. Defaults to `all`, which is what the
    * checks and any endpoint without a phase want; the runtime passes the
-   * worker's current phase so a round pays for ~11 schemas instead of 28.
+   * worker's current phase so a round pays for one phase slice instead of the
+   * whole toolkit.
    */
   phase?: ToolPhase | 'all';
 }

@@ -1,11 +1,13 @@
 /**
  * The capability router: which slice of the toolkit a worker is shown.
  *
- * Sending all 28 schemas on every round costs ~3,300 tokens before a single
- * file is read. A worker does not need `start_process` while it is still
- * reading the folder, and it does not need `write_file` while it is running the
- * tests. This module names the four phases, says which tool belongs to which,
- * and moves the worker between them after every result.
+ * Sending the whole toolkit on every round costs a few thousand tokens before a
+ * single file is read — `schemaTokens()` measures today's figure, which is why
+ * this file quotes no number that can rot. A worker does not need
+ * `start_process` while it is still reading the folder, and it does not need
+ * `write_file` while it is running the tests. This module names the four
+ * phases, says which tool belongs to which, and moves the worker between them
+ * after every result.
  *
  * It is pure and lives outside the runtime so the phase table can be checked
  * without spawning a model.
