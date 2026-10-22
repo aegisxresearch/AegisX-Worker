@@ -950,7 +950,7 @@ Jalur CLI juga diverifikasi pada panggilan model nyata: dari folder kosong,
 dan `script.js`, dan halaman itu merender tanpa error konsol dan tanpa overflow
 horizontal pada 375 / 768 / 1440 px.
 
-## License
+## Lisensi
 
 MIT — lihat [LICENSE](LICENSE). Pakai, fork, dan distribusikan; sertakan
 copyright dan permission notice pada setiap salinan. Nama dan logo tidak termasuk

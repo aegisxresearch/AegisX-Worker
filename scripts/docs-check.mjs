@@ -289,6 +289,40 @@ function headingLevels(text) {
     .map((match) => match[1].length);
 }
 
+/**
+ * GitHub's heading anchor: lowercase, punctuation dropped, spaces to hyphens.
+ * Only letters, digits, spaces and hyphens survive, which is enough for these
+ * documents and keeps the rule readable.
+ */
+function anchor(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .trim()
+    .replace(/\s+/g, '-');
+}
+
+/** Every heading a `](#…)` link is allowed to point at in this file. */
+function headingAnchors(text) {
+  return new Set(
+    text
+      .split('\n')
+      .filter((line) => /^#{1,4}\s/.test(line))
+      .map((line) => anchor(line.replace(/^#{1,4}\s+/, ''))),
+  );
+}
+
+/** In-page link targets, without the leading `#`. */
+function inPageTargets(text) {
+  return [...new Set([...text.matchAll(/\]\(#([^)]+)\)/g)].map((match) => match[1]))];
+}
+
+/** A table of contents that points at a heading nobody wrote is a dead link. */
+function brokenAnchors(text) {
+  const headings = headingAnchors(text);
+  return inPageTargets(text).filter((target) => !headings.has(target));
+}
+
 /** Relative link targets: the files a reader is sent to, not anchors or URLs. */
 function relativeLinks(text) {
   return [...text.matchAll(/\]\((?!https?:|#)([^)]+)\)/g)]
@@ -327,6 +361,14 @@ await check('every file the English README links to is linked in Indonesian', ()
   const inIndonesian = new Set(relativeLinks(idReadme));
   const missing = [...new Set(relativeLinks(readme))].filter((target) => !inIndonesian.has(target));
   assert.deepEqual(missing, [], `not linked in README.id.md: ${missing.join(', ')}`);
+});
+
+await check('every in-page link in the English README resolves', () => {
+  assert.deepEqual(brokenAnchors(readme), [], `dead anchors: ${brokenAnchors(readme).join(', ')}`);
+});
+
+await check('every in-page link in the Indonesian README resolves', () => {
+  assert.deepEqual(brokenAnchors(idReadme), [], `dead anchors: ${brokenAnchors(idReadme).join(', ')}`);
 });
 
 await check('the Indonesian file map lists every path the English one does', () => {
@@ -379,6 +421,11 @@ await check('a translation that dropped a section would be reported', () => {
     ['LICENSE'],
     'the link comparison cannot see the links of a dropped section',
   );
+});
+
+await check('a table of contents pointing at a missing heading would be reported', () => {
+  const broken = brokenAnchors('## Ada\n\n- [A](#ada)\n- [B](#tidak-ada)');
+  assert.deepEqual(broken, ['tidak-ada'], 'the anchor comparison stopped seeing a dead link');
 });
 
 await check('a path on the map that is gone would be reported', async () => {
