@@ -824,11 +824,12 @@ npm run eval:playbook -- --save evals/playbook-baseline.json      # record a bas
 npm run eval:playbook -- --baseline evals/playbook-baseline.json  # fail on a regression
 ```
 
-A baseline in `evals/playbook-baseline.json` is a measurement, not a claim:
-`--baseline` only fails when a mission that passed before fails now. The last
-recorded live run is in that file, with the per-mission reason and wall time —
-including the missions that did not pass, because a suite that only remembers
-its wins cannot tell you what changed.
+A baseline recorded with `--save` is a measurement, not a claim: `--baseline`
+only fails when a mission that passed before fails now. Keep the JSON in the
+repo and a run becomes comparable across machines — the per-mission reason and
+wall time matter as much as the pass count, because a suite that only remembers
+its wins cannot tell you what changed. A live run needs credit and a model that
+answers inside the task timeout; the suite is opt-in for that reason.
 
 The eval suite measures the thing all of the above exists for — finished work,
 cost and time on sixteen fixed missions — and checks itself:
